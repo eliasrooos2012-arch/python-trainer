@@ -138,6 +138,60 @@
         color: #9ca3af;
         margin-bottom: 8px;
     }
+
+    /* Lesson popup (slide up from bottom) */
+    #lessonOverlay {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        top: 0;
+        background: rgba(15,23,42,0.7);
+        display: flex;
+        justify-content: center;
+        align-items: flex-end;
+        z-index: 9998;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.25s ease;
+    }
+    #lessonOverlay.visible {
+        pointer-events: auto;
+        opacity: 1;
+    }
+    #lessonPopup {
+        width: 100%;
+        max-width: 900px;
+        background: #020617;
+        border-radius: 16px 16px 0 0;
+        border-top: 1px solid #1f2937;
+        padding: 20px;
+        box-shadow: 0 -10px 30px rgba(0,0,0,0.5);
+        transform: translateY(100%);
+        transition: transform 0.25s ease;
+    }
+    #lessonOverlay.visible #lessonPopup {
+        transform: translateY(0);
+    }
+    #lessonTitle {
+        margin-top: 0;
+        margin-bottom: 8px;
+    }
+    #lessonContent {
+        font-size: 14px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        margin-bottom: 12px;
+    }
+    #lessonCode {
+        background: #0f172a;
+        padding: 10px;
+        border-radius: 6px;
+        border: 1px solid #1f2937;
+        white-space: pre;
+        font-size: 13px;
+        margin-bottom: 12px;
+    }
 </style>
 </head>
 <body>
@@ -171,6 +225,16 @@
         <button id="submit">Submit</button>
         <div id="attempts"></div>
         <div class="feedback" id="feedback"></div>
+    </div>
+</div>
+
+<!-- Lesson popup -->
+<div id="lessonOverlay">
+    <div id="lessonPopup">
+        <h2 id="lessonTitle"></h2>
+        <div id="lessonContent"></div>
+        <div id="lessonCode"></div>
+        <button id="startStageBtn">Start Stage</button>
     </div>
 </div>
 
@@ -259,23 +323,76 @@ const curriculum = [
 "Flask Basics","Flask Routing","Flask Templates","Full Program Project"
 ];
 
+/* Short lesson generator for each topic */
+function buildLesson(topic) {
+    const title = `Lesson – ${topic}`;
+    let content = "";
+    let code = "";
+
+    content += `In this stage, you will learn the basics of "${topic}" in Python.\n\n`;
+    content += `Read this short explanation, look at the example code, and then press "Start Stage" to answer questions.\n\n`;
+    content += `Try to understand what the code does and how it relates to the idea of "${topic}".`;
+
+    switch (topic) {
+        case "Hello World":
+            content = `This is your first Python program.\n\nThe function print() sends text to the screen. In Python, we write strings inside quotes.\n\nYou will see how to write and run a simple "Hello, world!" program.`;
+            code = `print("Hello, world!")`;
+            break;
+        case "Variables":
+            content = `Variables store values in Python. You can think of them as labeled boxes that hold data.\n\nYou create a variable by writing a name, then =, then a value. Later, you can use that name to access the value.`;
+            code = `age = 12\nname = "Elias"\nprint("Name:", name)\nprint("Age:", age)`;
+            break;
+        case "Strings":
+            content = `Strings are pieces of text in Python. They are written inside quotes, like "hello".\n\nYou can join strings together (concatenation) or use them in print() to show messages.`;
+            code = `greeting = "Hello"\nname = "Elias"\nmessage = greeting + ", " + name + "!"\nprint(message)`;
+            break;
+        case "If Statements":
+            content = `If statements let your program make decisions.\n\nIf a condition is True, a block of code runs. Otherwise, it can skip or run an else block.`;
+            code = `age = 15\nif age >= 13:\n    print("You are a teenager!")\nelse:\n    print("You are not a teenager yet.")`;
+            break;
+        case "While Loops":
+            content = `A while loop repeats code as long as a condition is True.\n\nBe careful to change something inside the loop, or it might run forever.`;
+            code = `count = 1\nwhile count <= 5:\n    print("Count is", count)\n    count += 1`;
+            break;
+        case "For Loops":
+            content = `A for loop repeats code for each item in a sequence, like a list or a range of numbers.\n\nIt is very useful for doing something many times.`;
+            code = `for i in range(5):\n    print("i is", i)`;
+            break;
+        case "Functions":
+            content = `Functions are reusable blocks of code. You define them with def, give them a name, and then call them.\n\nThey help organize your code and avoid repetition.`;
+            code = `def greet(name):\n    print("Hello,", name)\n\ngreet("Elias")\ngreet("World")`;
+            break;
+        default:
+            code = `# Example related to "${topic}"\n# (This is a simple placeholder example.)\nprint("This stage is about:", "${topic}")`;
+            break;
+    }
+
+    return { title, content, code };
+}
+
+/* Build stages with questions */
 const stages = curriculum.map((topic, i) => {
     const id = i + 1;
+    const lesson = buildLesson(topic);
     return {
         id,
+        topic,
         title: `Stage ${id} – ${topic}`,
-        concept: `Topic: ${topic}\n\nThis stage teaches the basics of: ${topic}.`,
+        lessonTitle: lesson.title,
+        lessonContent: lesson.content,
+        lessonCode: lesson.code,
+        concept: `Topic: ${topic}\n\nThis stage will ask you questions about: ${topic}.`,
         questions: [
             {
-                prompt: `Explain what "${topic}" means in Python (short answer).`,
-                answer: (txt) => txt.trim().length > 3
+                prompt: `In your own words, what is "${topic}" in Python?`,
+                answer: (txt) => txt.trim().length > 5
             },
             {
-                prompt: `Write a simple example related to "${topic}".`,
-                answer: (txt) => txt.includes("(") || txt.includes("=")
+                prompt: `Write a simple example related to "${topic}". It can be one or two lines of code.`,
+                answer: (txt) => txt.includes("(") || txt.includes("=") || txt.includes(":")
             },
             {
-                prompt: `Review: From Stage 1 — what function prints text?`,
+                prompt: `Review: From Stage 1 — what function prints text to the screen?`,
                 answer: ["print"]
             }
         ]
@@ -285,7 +402,7 @@ const stages = curriculum.map((topic, i) => {
 /* ------------------------------
    STATE
 --------------------------------*/
-let state = JSON.parse(localStorage.getItem("trainerState_v2") || "{}");
+let state = JSON.parse(localStorage.getItem("trainerState_v3") || "{}");
 if (!state.currentStage) state.currentStage = 1;
 if (!state.maxUnlocked) state.maxUnlocked = 1;
 if (!state.answers) state.answers = {};
@@ -295,10 +412,11 @@ if (state.xp == null) state.xp = 0;
 if (state.streak == null) state.streak = 0;
 if (!state.lastPlayDate) state.lastPlayDate = null;
 if (!state.hearts) state.hearts = {};
+if (!state.seenLesson) state.seenLesson = {};
 const MAX_HEARTS = 3;
 
 function save() {
-    localStorage.setItem("trainerState_v2", JSON.stringify(state));
+    localStorage.setItem("trainerState_v3", JSON.stringify(state));
 }
 
 /* ------------------------------
@@ -306,7 +424,7 @@ function save() {
 --------------------------------*/
 function updateStreak() {
     const today = new Date();
-    const todayStr = today.toISOString().slice(0,10); // YYYY-MM-DD
+    const todayStr = today.toISOString().slice(0,10);
 
     if (!state.lastPlayDate) {
         state.streak = 1;
@@ -340,6 +458,7 @@ function ensure(stage) {
     if (!state.attempts[stage]) state.attempts[stage] = {};
     if (!state.redo[stage]) state.redo[stage] = [];
     if (state.hearts[stage] == null) state.hearts[stage] = MAX_HEARTS;
+    if (state.seenLesson[stage] == null) state.seenLesson[stage] = false;
 }
 
 function nextQuestion(stage) {
@@ -367,7 +486,7 @@ function isComplete(stage) {
 }
 
 /* ------------------------------
-   UI RENDERING
+   UI ELEMENTS
 --------------------------------*/
 const stageListEl = document.getElementById("stageList");
 const stageTitleEl = document.getElementById("stageTitle");
@@ -382,6 +501,15 @@ const heartsDisplayEl = document.getElementById("heartsDisplay");
 const xpDisplayEl = document.getElementById("xpDisplay");
 const streakDisplayEl = document.getElementById("streakDisplay");
 
+const lessonOverlayEl = document.getElementById("lessonOverlay");
+const lessonTitleEl = document.getElementById("lessonTitle");
+const lessonContentEl = document.getElementById("lessonContent");
+const lessonCodeEl = document.getElementById("lessonCode");
+const startStageBtnEl = document.getElementById("startStageBtn");
+
+/* ------------------------------
+   RENDERING
+--------------------------------*/
 function renderSidebar() {
     stageListEl.innerHTML = "";
     stages.forEach(s => {
@@ -420,6 +548,19 @@ function renderStats() {
     streakDisplayEl.textContent = `Streak: ${state.streak} 🔥`;
 }
 
+function showLessonPopup(stage) {
+    const s = stages[stage - 1];
+    lessonTitleEl.textContent = s.lessonTitle;
+    lessonContentEl.textContent = s.lessonContent;
+    lessonCodeEl.textContent = s.lessonCode;
+    lessonOverlayEl.classList.add("visible");
+    speak(s.lessonTitle + ". " + s.lessonContent);
+}
+
+function hideLessonPopup() {
+    lessonOverlayEl.classList.remove("visible");
+}
+
 function render() {
     updateStreak();
     renderStats();
@@ -438,6 +579,17 @@ function render() {
     const totalQ = s.questions.length;
     const correctCount = Object.keys(state.answers[stage]).length;
     progressEl.textContent = `Questions correct: ${correctCount}/${totalQ}`;
+
+    // If lesson not seen yet for this stage, show popup and block questions
+    if (!state.seenLesson[stage]) {
+        answerEl.disabled = true;
+        submitBtnEl.disabled = true;
+        questionEl.textContent = "Read the lesson first, then start the stage.";
+        attemptsEl.textContent = "";
+        feedbackEl.textContent = "";
+        showLessonPopup(stage);
+        return;
+    }
 
     if (qIndex === null) {
         questionEl.textContent = "Stage complete! You can move to the next stage.";
@@ -468,6 +620,18 @@ function render() {
     const attempts = state.attempts[stage][qIndex] || 0;
     attemptsEl.textContent = `Attempts: ${attempts}/3`;
 }
+
+/* ------------------------------
+   LESSON POPUP HANDLING
+--------------------------------*/
+startStageBtnEl.addEventListener("click", () => {
+    const stage = state.currentStage;
+    ensure(stage);
+    state.seenLesson[stage] = true;
+    save();
+    hideLessonPopup();
+    render();
+});
 
 /* ------------------------------
    ANSWER HANDLING
