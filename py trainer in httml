@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Python Trainer – 100 Stages</title>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        background: #0f172a;
+        color: #e5e7eb;
+        display: flex;
+        height: 100vh;
+    }
+    #fullscreenBtn {
+        position: fixed;
+        top: 10px;
+        right: 10px;
+        z-index: 9999;
+        padding: 8px 14px;
+        background: #1d4ed8;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+    }
+    #sidebar {
+        width: 260px;
+        background: #020617;
+        border-right: 1px solid #1f2937;
+        padding: 16px;
+        overflow-y: auto;
+        box-sizing: border-box;
+    }
+    #main {
+        flex: 1;
+        padding: 24px;
+        overflow-y: auto;
+        box-sizing: border-box;
+    }
+    .stage-item {
+        padding: 8px;
+        margin-bottom: 4px;
+        border-radius: 6px;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        background: #1e293b;
+        font-size: 14px;
+    }
+    .stage-item.locked {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
+    .stage-item.active {
+        background: #1d4ed8;
+    }
+    .badge {
+        font-size: 11px;
+        padding: 2px 6px;
+        border-radius: 999px;
+        background: #111827;
+    }
+    .badge.done {
+        background: #16a34a;
+    }
+    .card {
+        background: #020617;
+        padding: 20px;
+        border-radius: 10px;
+        border: 1px solid #1f2937;
+        max-width: 900px;
+    }
+    .top-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+        font-size: 14px;
+    }
+    .top-bar span {
+        margin-right: 12px;
+    }
+    .hearts {
+        color: #f97373;
+        font-weight: bold;
+    }
+    .concept {
+        background: #0f172a;
+        padding: 12px;
+        border-radius: 6px;
+        border: 1px solid #1f2937;
+        margin-bottom: 16px;
+        white-space: pre-wrap;
+        font-size: 14px;
+    }
+    .code {
+        background: #0f172a;
+        padding: 10px;
+        border-radius: 6px;
+        border: 1px solid #1f2937;
+        white-space: pre;
+        margin-bottom: 10px;
+        font-size: 13px;
+    }
+    input {
+        width: 100%;
+        padding: 8px;
+        border-radius: 6px;
+        border: 1px solid #334155;
+        background: #0f172a;
+        color: white;
+        box-sizing: border-box;
+    }
+    button {
+        margin-top: 10px;
+        padding: 8px 14px;
+        border-radius: 6px;
+        border: none;
+        background: #1d4ed8;
+        color: white;
+        cursor: pointer;
+        font-size: 14px;
+    }
+    button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+    .feedback.ok { color: #4ade80; margin-top: 8px; }
+    .feedback.err { color: #f87171; margin-top: 8px; }
+    #attempts {
+        font-size: 12px;
+        color: #9ca3af;
+        margin-top: 6px;
+    }
+    #progress {
+        font-size: 13px;
+        color: #9ca3af;
+        margin-bottom: 8px;
+    }
+</style>
+</head>
+<body>
+
+<button id="fullscreenBtn">Fullscreen</button>
+
+<div id="sidebar">
+    <h2>Python Trainer</h2>
+    <div id="stageList"></div>
+</div>
+
+<div id="main">
+    <div class="card">
+        <div class="top-bar">
+            <div>
+                <span id="xpDisplay">XP: 0</span>
+                <span id="streakDisplay">Streak: 0 🔥</span>
+            </div>
+            <div>
+                <span class="hearts" id="heartsDisplay">♥♥♥</span>
+            </div>
+        </div>
+        <button id="enableVoiceBtn">🔊 Enable Voice</button>
+        <h2 id="stageTitle"></h2>
+        <div id="progress"></div>
+        <div class="concept" id="concept"></div>
+        <div id="question"></div>
+        <button id="speakAgainBtn">🔊 Speak Again</button>
+        <div class="code" id="codeBox" style="display:none;"></div>
+        <input id="answer" placeholder="Type your answer…">
+        <button id="submit">Submit</button>
+        <div id="attempts"></div>
+        <div class="feedback" id="feedback"></div>
+    </div>
+</div>
+
+<script>
+/* ------------------------------
+   FULLSCREEN
+--------------------------------*/
+function goFullscreen() {
+    const elem = document.body;
+    if (elem.requestFullscreen) elem.requestFullscreen();
+}
+document.getElementById("fullscreenBtn").addEventListener("click", goFullscreen);
+
+/* ------------------------------
+   TEXT-TO-SPEECH
+--------------------------------*/
+let voiceEnabled = false;
+
+function speak(text) {
+    if (!voiceEnabled) return;
+    if (!("speechSynthesis" in window)) return;
+    const msg = new SpeechSynthesisUtterance(text);
+    msg.rate = 1;
+    msg.pitch = 1;
+    msg.volume = 1;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(msg);
+}
+
+document.getElementById("enableVoiceBtn").addEventListener("click", () => {
+    voiceEnabled = true;
+    speak("Voice enabled");
+});
+
+document.getElementById("speakAgainBtn").addEventListener("click", () => {
+    const q = document.getElementById("question").textContent;
+    speak(q);
+});
+
+/* ------------------------------
+   SIMPLE SOUND EFFECTS
+--------------------------------*/
+let audioCtx = null;
+function initAudio() {
+    if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+}
+function playBeep(freq, duration) {
+    if (!audioCtx) return;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = "sine";
+    osc.frequency.value = freq;
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+    osc.start();
+    osc.stop(audioCtx.currentTime + duration);
+}
+function playCorrectSound() {
+    playBeep(880, 0.15);
+}
+function playWrongSound() {
+    playBeep(220, 0.25);
+}
+
+/* ------------------------------
+   100-STAGE PYTHON CURRICULUM
+--------------------------------*/
+const curriculum = [
+"Hello World","Basic Math","Variables","Strings","User Input","If Statements","Boolean Logic",
+"While Loops","For Loops","Functions","Return Values","Lists","List Methods","Tuples",
+"Dictionaries","Dictionary Methods","Sets","Loops + Lists","Loops + Dictionaries","Nested Loops",
+"Modules","Importing","Random Module","Time Module","Defining Classes","Objects","Constructors",
+"Class Methods","Static Methods","Inheritance","Polymorphism","Encapsulation","File Reading",
+"File Writing","Try/Except","Raising Errors","Custom Exceptions","List Comprehensions",
+"Lambda Functions","Map/Filter","Generators","Iterators","Decorators","Args/Kwargs","Recursion",
+"Binary Numbers","Hex Numbers","Bitwise Ops","Sorting","Searching","Algorithms","Big O Basics",
+"Stacks","Queues","Linked Lists","Trees","Binary Trees","Binary Search Trees","Graphs",
+"Graph Traversal","DFS","BFS","Pathfinding","JSON","APIs","HTTP Basics","Web Scraping","Regex",
+"Virtual Environments","Pip","Packages","Unit Testing","Mocking","Debugging","Logging",
+"CLI Programs","Argparse","Dataclasses","Typing","Enums","Async/Await","Coroutines","Event Loops",
+"Threading","Multiprocessing","Sockets","Networking","Databases","SQL Basics","SQLite","ORMs",
+"Flask Basics","Flask Routing","Flask Templates","Full Program Project"
+];
+
+const stages = curriculum.map((topic, i) => {
+    const id = i + 1;
+    return {
+        id,
+        title: `Stage ${id} – ${topic}`,
+        concept: `Topic: ${topic}\n\nThis stage teaches the basics of: ${topic}.`,
+        questions: [
+            {
+                prompt: `Explain what "${topic}" means in Python (short answer).`,
+                answer: (txt) => txt.trim().length > 3
+            },
+            {
+                prompt: `Write a simple example related to "${topic}".`,
+                answer: (txt) => txt.includes("(") || txt.includes("=")
+            },
+            {
+                prompt: `Review: From Stage 1 — what function prints text?`,
+                answer: ["print"]
+            }
+        ]
+    };
+});
+
+/* ------------------------------
+   STATE
+--------------------------------*/
+let state = JSON.parse(localStorage.getItem("trainerState_v2") || "{}");
+if (!state.currentStage) state.currentStage = 1;
+if (!state.maxUnlocked) state.maxUnlocked = 1;
+if (!state.answers) state.answers = {};
+if (!state.attempts) state.attempts = {};
+if (!state.redo) state.redo = {};
+if (state.xp == null) state.xp = 0;
+if (state.streak == null) state.streak = 0;
+if (!state.lastPlayDate) state.lastPlayDate = null;
+if (!state.hearts) state.hearts = {};
+const MAX_HEARTS = 3;
+
+function save() {
+    localStorage.setItem("trainerState_v2", JSON.stringify(state));
+}
+
+/* ------------------------------
+   STREAK LOGIC
+--------------------------------*/
+function updateStreak() {
+    const today = new Date();
+    const todayStr = today.toISOString().slice(0,10); // YYYY-MM-DD
+
+    if (!state.lastPlayDate) {
+        state.streak = 1;
+        state.lastPlayDate = todayStr;
+        save();
+        return;
+    }
+
+    if (state.lastPlayDate === todayStr) {
+        return;
+    }
+
+    const last = new Date(state.lastPlayDate);
+    const diffMs = today - last;
+    const diffDays = Math.floor(diffMs / (1000*60*60*24));
+
+    if (diffDays === 1) {
+        state.streak += 1;
+    } else {
+        state.streak = 1;
+    }
+    state.lastPlayDate = todayStr;
+    save();
+}
+
+/* ------------------------------
+   HELPERS
+--------------------------------*/
+function ensure(stage) {
+    if (!state.answers[stage]) state.answers[stage] = {};
+    if (!state.attempts[stage]) state.attempts[stage] = {};
+    if (!state.redo[stage]) state.redo[stage] = [];
+    if (state.hearts[stage] == null) state.hearts[stage] = MAX_HEARTS;
+}
+
+function nextQuestion(stage) {
+    const s = stages[stage - 1];
+    ensure(stage);
+
+    for (let i = 0; i < s.questions.length; i++) {
+        if (!state.answers[stage][i] && !state.redo[stage].includes(i)) return i;
+    }
+    if (state.redo[stage].length > 0) return state.redo[stage][0];
+    return null;
+}
+
+function checkAnswer(q, input) {
+    if (typeof q.answer === "function") return q.answer(input);
+    const arr = Array.isArray(q.answer) ? q.answer : [q.answer];
+    return arr.map(a => a.toLowerCase()).includes(input.toLowerCase().trim());
+}
+
+function isComplete(stage) {
+    const s = stages[stage - 1];
+    ensure(stage);
+    if (state.redo[stage].length > 0) return false;
+    return Object.keys(state.answers[stage]).length === s.questions.length;
+}
+
+/* ------------------------------
+   UI RENDERING
+--------------------------------*/
+const stageListEl = document.getElementById("stageList");
+const stageTitleEl = document.getElementById("stageTitle");
+const conceptEl = document.getElementById("concept");
+const questionEl = document.getElementById("question");
+const answerEl = document.getElementById("answer");
+const submitBtnEl = document.getElementById("submit");
+const attemptsEl = document.getElementById("attempts");
+const feedbackEl = document.getElementById("feedback");
+const progressEl = document.getElementById("progress");
+const heartsDisplayEl = document.getElementById("heartsDisplay");
+const xpDisplayEl = document.getElementById("xpDisplay");
+const streakDisplayEl = document.getElementById("streakDisplay");
+
+function renderSidebar() {
+    stageListEl.innerHTML = "";
+    stages.forEach(s => {
+        const div = document.createElement("div");
+        div.className = "stage-item";
+        if (s.id === state.currentStage) div.classList.add("active");
+        if (s.id > state.maxUnlocked) div.classList.add("locked");
+
+        div.innerHTML = `
+            <span>${s.title}</span>
+            <span class="badge ${isComplete(s.id) ? "done" : ""}">
+                ${s.id > state.maxUnlocked ? "Locked" : isComplete(s.id) ? "Done" : "Go"}
+            </span>
+        `;
+
+        div.addEventListener("click", () => {
+            if (s.id <= state.maxUnlocked) {
+                state.currentStage = s.id;
+                save();
+                render();
+            }
+        });
+
+        stageListEl.appendChild(div);
+    });
+}
+
+function renderHearts(stage) {
+    ensure(stage);
+    const hearts = state.hearts[stage];
+    heartsDisplayEl.textContent = "♥".repeat(hearts) + "♡".repeat(MAX_HEARTS - hearts);
+}
+
+function renderStats() {
+    xpDisplayEl.textContent = `XP: ${state.xp}`;
+    streakDisplayEl.textContent = `Streak: ${state.streak} 🔥`;
+}
+
+function render() {
+    updateStreak();
+    renderStats();
+    renderSidebar();
+
+    const stage = state.currentStage;
+    const s = stages[stage - 1];
+    ensure(stage);
+    renderHearts(stage);
+
+    stageTitleEl.textContent = s.title;
+    conceptEl.textContent = s.concept;
+
+    const qIndex = nextQuestion(stage);
+
+    const totalQ = s.questions.length;
+    const correctCount = Object.keys(state.answers[stage]).length;
+    progressEl.textContent = `Questions correct: ${correctCount}/${totalQ}`;
+
+    if (qIndex === null) {
+        questionEl.textContent = "Stage complete! You can move to the next stage.";
+        answerEl.disabled = true;
+        submitBtnEl.disabled = true;
+        feedbackEl.textContent = "";
+        attemptsEl.textContent = "";
+
+        if (stage === state.maxUnlocked && stage < stages.length) {
+            state.maxUnlocked++;
+            state.xp += 20; // stage completion bonus
+            save();
+            renderStats();
+            renderSidebar();
+        }
+        return;
+    }
+
+    const q = s.questions[qIndex];
+    questionEl.textContent = q.prompt;
+    speak(q.prompt);
+
+    answerEl.value = "";
+    answerEl.disabled = false;
+    submitBtnEl.disabled = false;
+    feedbackEl.textContent = "";
+
+    const attempts = state.attempts[stage][qIndex] || 0;
+    attemptsEl.textContent = `Attempts: ${attempts}/3`;
+}
+
+/* ------------------------------
+   ANSWER HANDLING
+--------------------------------*/
+submitBtnEl.addEventListener("click", () => {
+    initAudio();
+
+    const stage = state.currentStage;
+    const s = stages[stage - 1];
+    ensure(stage);
+
+    const qIndex = nextQuestion(stage);
+    if (qIndex === null) return;
+
+    const q = s.questions[qIndex];
+    const input = answerEl.value;
+
+    if (!input.trim()) {
+        feedbackEl.textContent = "Type an answer first.";
+        feedbackEl.className = "feedback err";
+        return;
+    }
+
+    const correct = checkAnswer(q, input);
+
+    if (correct) {
+        const wasAlreadyCorrect = !!state.answers[stage][qIndex];
+        state.answers[stage][qIndex] = true;
+        state.redo[stage] = state.redo[stage].filter(x => x !== qIndex);
+        feedbackEl.textContent = "Correct!";
+        feedbackEl.className = "feedback ok";
+        playCorrectSound();
+        if (!wasAlreadyCorrect) {
+            state.xp += 10;
+        }
+        save();
+        render();
+    } else {
+        playWrongSound();
+        const attempts = (state.attempts[stage][qIndex] || 0) + 1;
+        state.attempts[stage][qIndex] = attempts;
+
+        if (!state.redo[stage].includes(qIndex)) {
+            state.redo[stage].push(qIndex);
+        }
+
+        state.hearts[stage] -= 1;
+        if (state.hearts[stage] <= 0) {
+            feedbackEl.textContent = "You lost all hearts. Stage reset.";
+            feedbackEl.className = "feedback err";
+            state.answers[stage] = {};
+            state.attempts[stage] = {};
+            state.redo[stage] = [];
+            state.hearts[stage] = MAX_HEARTS;
+        } else {
+            feedbackEl.textContent = `Wrong. Hearts left: ${state.hearts[stage]}. You'll see this again later.`;
+            feedbackEl.className = "feedback err";
+        }
+
+        save();
+        render();
+    }
+});
+
+answerEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+        submitBtnEl.click();
+    }
+});
+
+/* ------------------------------
+   INIT
+--------------------------------*/
+render();
+</script>
+
+</body>
+</html>
